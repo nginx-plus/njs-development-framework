@@ -48,7 +48,7 @@ if [ $TARGET = 'directive' ]
 then
   # If a default export was found, replace the variable assignment with
   # an assignement to a predefined key on the `global` object used by NJS
-  sed -i -e 's/var __WEBPACK_DEFAULT_EXPORT__/global.bundleExports/g' $OUTFILE
+  sed -i -e 's/.*harmony default export \*\/.*=/global.bundleExports =/g' $OUTFILE
 
   # If we did have a default export, add a line to the very end of the file
   # that exports the item on the global object in a way njs will understand.

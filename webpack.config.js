@@ -1,7 +1,6 @@
 const path = require("path");
 
 module.exports = {
-  cache: false,
   entry: "./src/script.js",
   mode: "production", // Using production mode since it forces webpack to not use `eval` which is not supported by njs
   output: {
