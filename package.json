@@ -1,0 +1,19 @@
+{
+  "name": "create-njs-app",
+  "version": "0.0.1",
+  "description": "Create, build, and test [NJS](https://nginx.org/en/docs/njs/) addons for NGINX.",
+  "main": "src/script.js",
+  "scripts": {
+    "njs": "./_internal/njs",
+    "build": "./_internal/bundle_with_transpile.sh",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "Apache 2.0",
+  "devDependencies": {
+    "@babel/cli": "^7.17.6",
+    "@babel/preset-env": "^7.16.11",
+    "babel-loader": "^8.2.4",
+    "webpack-cli": "^4.9.2"
+  }
+}
