@@ -18,7 +18,8 @@
           "es.array.map", // njs supports
           "es.regexp.exec",
           "es.string.split",
-          "es.function.name"
+          "es.function.name",
+          "es.promise"
         ]
       }
     ]
