@@ -5,36 +5,36 @@
 Create, build, and test [NJS](https://nginx.org/en/docs/njs/) addons for NGINX.
 
 ## Goals/Roadmap
-* Transpile most code with packages from NPM to javascript that can run on the NJS interpreter
-* Find a less hacky way to handle default exports (maybe a webpack plugin)
-* Provide transpilation targets for both nsj cli tool and usage via various directives in [ngx_http_js_module](https://nginx.org/en/docs/http/ngx_http_js_module.html) and [ngx_stream_js_module](https://nginx.org/en/docs/stream/ngx_stream_js_module.html)
-* Provide a testing example and run commands
-* Support typescript transparantly
-* Provide a guide to choosing transpilation vs handrolled njs code
-  * Provide a guide to writing performant and secure njs code
-  * Enumerate differences from other popular interpreters
+- [x] Transpile most code with packages from NPM to javascript that can run on the NJS interpreter
+- [ ] Find a less hacky way to handle default exports (maybe a webpack plugin)
+- [x] Provide a testing example and run commands
+- [ ] Support typescript transparantly
+- [ ] Provide a guide to choosing transpilation vs handrolled njs code
+  - [ ] Provide a guide to writing performant and secure njs code
+  - [ ] Enumerate differences from other popular interpreters
 
-* Think about an app generation pattern (see `create-react-app`) or maybe something like old `yeoman`
-* Think about a cleaner pattern for scripts and maintaining an njs binary
-* Think about incorporating and actual nginx server in the test/dev loop
-* Provide and example of a workflow using the webpack dev server
-
-## Where I left off
-
----
+- [ ] Think about an app generation pattern (see `create-react-app`) or maybe something like old `yeoman` (look at https://github.com/jondot/hygen)
+- [ ] Think about a cleaner pattern for scripts and maintaining an njs binary
+- [x] Think about incorporating and actual nginx server in the test/dev loop
+- [ ] Package a release
+  - [ ] Optional versioning
+  - [ ] CI build example
+  - [ ] Allow to choose between building one module or a whole config
+  - [ ] Allow inclusion of arbitrary files in package
+  - [ ] Allow free choice in file structure
 
 ## Getting Started
-1. For now, just clone the repository:
+1. Clone the repository:
 `git clone git@github.com:4141done/create-njs-app.git`
 
-2. Install dependendecies.  Create NJS App assumes you have node 14+.  It comes with a `.tool-versions` and `.nvmrc` so to make sure you have a good node version you can just `asdf install` from the root directory
-
+2. Install dependendecies.
+Create NJS App requires node 14+.  It comes with `.tool-versions` and `.nvmrc` files so you can use [asdf](https://github.com/asdf-vm/asdf) or [nvm](https://github.com/nvm-sh/nvm) to make sure you have a good version.
 ```
 # If using asdf
 asdf install
 
 # If using nvm
-nvm install
+nvm use
 
 # Install dependencies
 npm install
@@ -44,7 +44,9 @@ npm install
 3. Setting up NJS
 This will install the NJS commandline tool for you. Currently we assume that you have a compatible version of [pcre2](https://github.com/PhilipHazel/pcre2/releases)
 and [OpenSSL](https://www.openssl.org/source/) installed on your system.  Later versions of this README will provide guides to installing these tools
-from source or build the installation into the setup script
+from source or build the installation into the setup script.
+
+The below script may take a while to run:
 
 ```
 ./setup.sh
@@ -54,17 +56,93 @@ from source or build the installation into the setup script
 The following example shows you how to write some njs code, import a dependency, and build it.
 
 ### Writing your code
-Your code will be written in the `./src/script.js` file for now.  In the future the project will let you have multiple files.  For now just leave the file location and name alone.
+Your code will be written in the `./src/scripts`.  Filenames MUST have a `.mjs` extension.
+<details>
+  <summary>What is a `.mjs` file?</summary>
+  
+  `.mjs` is a file extension that tells nodejs that the file is an [EcmaScript Module](https://nodejs.org/api/esm.html).
+  Basically it means that it provides one or more [`export`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/export) statements and can be [`import`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/import)ed as shared code.
 
-The `./src/script.js` file contains example code that already works, so let's just modify it in a small way.  Maybe we want to build a little endpoint that returns the version of our njs code:
+  NJS only has support for EcmaScript Module's `export default` syntax and NOT commonJS (`require`) to load shared 
+  code so for areas of code that are not transpiled we use this throughout the project.
+</details>
+
+The `./src/scripts/script.mjs` file contains example code that already works, so let's just modify it in a small way.  Maybe we want to build a little endpoint that returns the version of our njs code:
 ```javascript
-function version(r) {
+...
+function plaintextResponseExample(r) {
   // See https://nginx.org/en/docs/njs/reference.html for the javascript API reference
-  r.return(200, '1.0.1');
+  // ..your code.
+  r.return(200, 'Hello 🌎');
 }
 
-export default { version };
+...
 ```
+
+### Trying out your code
+```bash
+$ npm run build
+
+$ curl http://localhost:8082
+Hello 🌎
+```
+
+### Running Tests
+We can use our test suite to validate output. Try running the integration tests:
+```bash
+$ npm run test:integration
+
+NJS App Tests 
+✗ unixTest: Hello | AssertionError [ERR_ASSERTION]: false == true
+🐳 Tests finished! 🐳
+```
+It failed! but that's expected since we changed the return value of the endpoint.
+
+Let's see if the unit tests also fail:
+```bash
+$ npm run test:unit
+
+NJS App Tests 
+✔ variableComputationExample: with English
+✔ variableComputationExample: with Korean
+✔ variableComputationExample: with unexpected language header
+✔ variableComputationExample: with no language header
+✔ stripAmazonHeaders: with no amazon headers
+✔ stripAmazonHeaders: with amazon headers
+✗ plaintextResponseExample: invokes the return with the expected response | AssertionError [ERR_ASSERTION]: false == true
+🐳 Tests finished! 🐳
+```
+
+We have two failures. Let's fix them.
+
+### Fixing Tests
+Lets open up `./test/integration/basic.test.mjs` and modify it like so:
+```javascript
+...
+test(
+  'unixTest: Hello',
+  new Promise((done, error) => {
+    request({ path: '/' })
+      .then((response) => {
+        assert(response[1].statusCode === 200);
+        assert(isEqual(response[0], 'Hello 🌎'));
+        done();
+      })
+      .catch(error);
+  })
+);
+...
+```
+
+Now running `npm run test:integration` shows a pass:
+
+```bash
+NJS App Tests 
+✔ unixTest: Hello
+🐳 Tests finished! 🐳
+```
+
+Can you fix the unit tests too?
 
 ### Adding a dependency
 > :warning: TODO: find a better example
@@ -73,87 +151,27 @@ Say we want our version number response to include a request id, but specificall
 First, from the command line: `npm install --save nanoid`
 
 ```javascript
-
+...
 import { nanoid } from 'nanoid/non-secure';
 
-function version(r) {
+function plaintextResponseExample(r) {
   // See https://nginx.org/en/docs/njs/reference.html for the javascript API reference
+  // ..your code.
   r.headersOut['X-Request-ID'] = nanoid();
-  r.return(200, '1.0.1');
+  r.return(200, 'Hello 🌎');
 }
 
-export default { version };
+...
 ```
 
 ### Building
-`npm run build` run from the commandline will produce the file `_build/bundle.js`;
-
-### Testing
-Note that the following assumes that you have the njs module installed.
-<details>
-  <summary>If you don't, click here for instructions!</summary>
-  
-  TODO: Easy NJS installation instructions
-</details>
-
-Let's create a config file.  Create a file called `njs_test.nginx.conf` with the following content:
-```
-load_module modules/ngx_http_js_module.so;
-
-events {}
-
-http {
-  js_path "<absolute_path>/create-njs-app/_build";
-
-  js_import js from bundle.js;
-
-  server {
-    listen 8080;
-
-    location /version {
-      js_content js.version;
-    }
-  }
-}
-```
-Note that the `js_path` directive will need to have the absolute path to the `_build` directory. Make sure you replace `<absolute_path>` in the above code with the actual path to the `_build` directory.
-
-The file name has no significance and can be named whatever you'd like.
-
-Next, let's make sure that nginx is stopped:
-`nginx -s stop`
-If you see a message that looks like `nginx: [error] open() "/var/run/nginx.pid" failed (2: No such file or directory)` that just means it was not running to begin with.
-
-Start NGINX with your new config `nginx -c <path_to_config>/njs_test.nginx.conf`
-
-Now we can test:
-```bash
-04/11/2022 02:49:10 PM > curl -i http://localhost:8080/version
-HTTP/1.1 200 OK
-Server: nginx/1.21.0
-Date: Mon, 11 Apr 2022 21:49:11 GMT
-Content-Type: text/plain
-Content-Length: 5
-Connection: keep-alive
-X-Request-ID: IuS1amoODZRer3zPkCT_z
-
-1.0.1
-```
+`npm run release` run from the commandline will produce a folder structure in `./_build/release`
 
 ## Command Reference
-### Building
-You can build the script to two targets:
-#### Directive (default)
-Running `npm run build` will produce a bundle targeted at the `js_import` directive. If you want to be explicit, you can call `npm run build -- -t directive`.
-
-#### CLI
-`npm run build -- -t cli` will build the bundle without an `export default` statement.  This is useful for testing raw js code to see if it will run using the `njs` commandline tool
-
-
-### Using the commandline
-Make sure you've run `./setup.sh` before trying to use the command line tool.
-`npm run njs` will get you into a repl where you can try out commands.
-
-`npm run njs <path_to_file` will execute a file in the njs interpreter.
-
-# TODO: how to load a file into the interpreter and play with it.
+| Command                    | description                                                             |
+|----------------------------|-------------------------------------------------------------------------|
+| `npm run build`            | Builds the project and makes it available at `http://localhost:8082`    |
+| `npm run release`          | Builds the project and creates a folder structure in `./_build/release` |
+| `npm run test:unit`        | Runs the unit tests                                                     |
+| `npm run test:integration` | Runs the integration tests                                              |
+| `npm run clean`            | Removes all files and folders from the `_build` directory               |

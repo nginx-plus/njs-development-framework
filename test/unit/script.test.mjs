@@ -14,7 +14,7 @@ export default function (test, assert) {
       assert(
         isEqual(njsR.invocationsOf('return')[0], [
           200,
-          'Hello, world',
+          'Hello World',
         ])
       );
       done();

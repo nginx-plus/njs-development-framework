@@ -14,15 +14,12 @@ import Test from "./test.mjs";
 // We commit this transpiled version of power assert since njs does not have `assert`
 // and we want to avoid transpiling the actual test code.
 import assert from './power-assert.mjs';
-import fs from "fs";
-
 
 // Initialize the test suite.  Importing a test file and
 // invoking it with this instance and `assert` will
 // mutate this instance to add those tests to its
 // queue to run.
 const suite = Test("NJS App Tests");
-
 
 //====================
 // ADD YOUR TESTS HERE

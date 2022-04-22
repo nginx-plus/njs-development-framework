@@ -9,7 +9,7 @@
 function plaintextResponseExample(r) {
   // See https://nginx.org/en/docs/njs/reference.html for the javascript API reference
   // ..your code.
-  r.return(200, 'Hello, world');
+  r.return(200, 'Hello World');
 }
 
 

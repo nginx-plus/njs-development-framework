@@ -5,9 +5,11 @@
   "main": "src/script.js",
   "scripts": {
     "njs": "./_internal/njs",
-    "build": "./_internal/bundle_with_transpile.sh",
-    "test": "./_internal/bundle_with_transpile.sh && njs ./test/support/runner.mjs",
-    "clean": "rm ./_build/*"
+    "build": "./_internal/build.sh dev",
+    "test:unit": "./_internal/bundle_with_transpile.sh && njs ./test/support/runner-unit.mjs",
+    "test:integration": "./_internal/build.sh test && node ./test/support/runner-integration.mjs",
+    "clean": "rm -rf ./_build/*",
+    "release": "./_internal/build.sh release"
   },
   "author": "",
   "license": "Apache 2.0",

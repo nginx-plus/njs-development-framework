@@ -4,8 +4,8 @@ module.exports = {
   // Every key in this object will output a new bundled and transpiled script
   // into the `_build` directory
   entry: {
-    script: "./src/script.mjs",
-    "another-script": "./src/another-script.mjs",
+    script: "./src/scripts/script.mjs",
+    "another-script": "./src/scripts/another-script.mjs",
   },
 
   // Using production mode since it forces webpack to not use `eval`
