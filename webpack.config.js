@@ -26,7 +26,7 @@ module.exports = {
     // key of `my-script` the default config below will produce a file called
     // `my-script.mjs` in the `./_build` directory
     filename: "[name].mjs",
-    path: path.resolve(__dirname, "_build"),
+    path: path.resolve(__dirname, "_build", "js_bundles"),
 
     library: {
       // Tells Webpack to produce an ES6 module

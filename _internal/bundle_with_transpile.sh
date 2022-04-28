@@ -33,7 +33,7 @@ fi
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
 PROJECT_ROOT="$(dirname "${SCRIPT_DIR}")"
 
-TRANSPILED_FILES_DIR="${PROJECT_ROOT}"/_build
+TRANSPILED_FILES_DIR="${PROJECT_ROOT}"/_build/js_bundles
 WEBPACK_CONFIG="webpack.config.js"
 
 #==============================
@@ -53,7 +53,5 @@ for i in "${TRANSPILED_FILES_DIR}"/*.mjs; do
   # If a default export was found, export it using 'export default XX' syntax.
   sed -i -e 's/export { __webpack_exports__default as default };/export default __webpack_exports__default;/g' $i
 done
-
-exit 0
 
 

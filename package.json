@@ -5,11 +5,11 @@
   "main": "src/script.js",
   "scripts": {
     "njs": "./_internal/njs",
-    "build": "./_internal/build.sh dev",
+    "build": "./_internal/build.mjs dev",
     "test:unit": "./_internal/bundle_with_transpile.sh && njs ./test/support/runner-unit.mjs",
-    "test:integration": "./_internal/build.sh test && node ./test/support/runner-integration.mjs",
+    "test:integration": "./_internal/build.mjs test && node ./test/support/runner-integration.mjs",
     "clean": "rm -rf ./_build/*",
-    "release": "./_internal/build.sh release"
+    "release": "./_internal/build.mjs release"
   },
   "author": "",
   "license": "Apache 2.0",
@@ -18,9 +18,17 @@
     "@babel/preset-env": "^7.16.11",
     "assert": "^2.0.0",
     "babel-loader": "^8.2.4",
+    "chalk": "^5.0.1",
     "core-js": "^3.21.1",
     "lodash.isequal": "^4.5.0",
     "power-assert": "^1.6.1",
-    "webpack-cli": "^4.9.2"
+    "webpack-cli": "^4.9.2",
+    "yargs": "^17.4.1"
+  },
+  "releases": {
+    "my_release": {
+      "version": "0.0.1",
+      "nginxRoot": "./"
+    }
   }
 }

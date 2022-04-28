@@ -1,6 +1,6 @@
 import helper from '../support/njs-test-helper.mjs';
 import isEqual from '../support/lodash.is-equal.mjs';
-import subject from '../../_build/script.mjs';
+import subject from '../../_build/js_bundles/script.mjs';
 export default function (test, assert) {
   const ResponseMock = helper.ResponseMock;
 
