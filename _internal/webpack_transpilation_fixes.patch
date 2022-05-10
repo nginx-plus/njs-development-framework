@@ -1,16 +1,3 @@
-diff --git a/external/njs_regex.c b/external/njs_regex.c
-index 183e52e..5f306d1 100644
---- a/external/njs_regex.c
-+++ b/external/njs_regex.c
-@@ -222,6 +222,8 @@ njs_regex_compile(njs_regex_t *regex, u_char *source, size_t len,
-          options |= PCRE2_UTF;
-     }
- 
-+    pcre2_set_compile_extra_options(cctx, PCRE2_EXTRA_ALLOW_SURROGATE_ESCAPES);
-+
-     regex->code = pcre2_compile(source, len, options, &ret, &erroff, cctx);
- 
-     if (njs_slow_path(regex->code == NULL)) {
 diff --git a/src/njs_symbol.c b/src/njs_symbol.c
 index fc352b8..cc11b76 100644
 --- a/src/njs_symbol.c

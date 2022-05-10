@@ -2,7 +2,7 @@
 
 Any files placed in the `/misc` folder will be built into your release.
 The entire folder structure will be copied into the the release artifact with
-files in the root of `/misc` being moved to the the location specified in `releases.<release_name>.nginxRoot` in
+files in the root of `/misc` being moved to the the location specified in `releases.<release_name>.releaseRoot` in
 your `package.json`.
 
 ## What should I put in the `/misc` folder

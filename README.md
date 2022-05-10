@@ -51,6 +51,36 @@ The below script may take a while to run:
 ```
 ./setup.sh
 ```
+<details>
+  <summary>Using Docker</summary>
+  If you prefer not to install dependencies from source, you can use docker.
+  You may build the included Dockerfile with the following command:
+  `docker build -t my-nginx -f _internal/Dockerfile .`
+
+  After that you can run various tasks like running unit tests:
+  `docker run -v $(pwd):/create-njs-app --rm my-nginx /bin/bash -l -c 'npm run test:unit'`
+
+  Integration tests:
+  `docker run -v $(pwd):/create-njs-app --rm my-nginx /bin/bash -l -c 'npm run test:integration -- --nginx-bin-path=nginx --nginx-module-path=/usr/lib/nginx/modules`
+
+  Build a release:
+  `docker run -v $(pwd):/create-njs-app --rm my-nginx /bin/bash -l -c 'npm run release'`
+
+  Alternately, you can leverage `docker-compose`. If you know how to use docker compose all the usual commands will work.  They have also been aliased as `npm run docker:up` and `npm run docker:down`
+
+  Once the docker image is running you can run any of the other actions:
+
+  Unit tests:
+  `docker-compose exec dev /bin/bash -l -c 'npm run test:unit'`
+
+  Integration tests:
+  `docker-compose exec dev /bin/bash -l -c 'npm run test:integration -- --nginx-bin-path=nginx --nginx-module-path=/usr/lib/nginx/modules'`
+
+  Build a release:
+  `docker-compose exec dev /bin/bash -l -c 'npm run test:unit'`
+</details>
+
+
 
 ## Usage
 The following example shows you how to write some njs code, import a dependency, and build it.
@@ -165,7 +195,37 @@ function plaintextResponseExample(r) {
 ```
 
 ### Building
+`npm run build` will build your JS and config and make it available on a local NGINX server at `http://localhost:8082`
+
+### Releasing
 `npm run release` run from the commandline will produce a folder structure in `./_build/release`
+
+#### Configuring your release
+
+The release configuration is located in the `package.json` file at the project root and looks like this:
+
+```
+"releases": {
+    "my_release": {
+      "version": "0.0.1",
+      "releaseRoot": "./",
+      "nginxPrefix": "/usr/local/nginx",
+      "nginxModulesPath": "./modules"
+    }
+  }
+```
+
+Using the above snippet as a reference configuration has the following effects:
+
+* `my_release`: This can be any string.  This is the name of your release and will be included in the filename of the release artifact
+
+* `version`: This is an arbitrary version string that will be included in the filename of the release artifact.
+
+* `releaseRoot`: Sets the folder structure inside the archive produced by the release process.  Mainly helpful if you know that you need to extract the archive from a certain location on the target host and would like to overwrite the existing configuration.
+
+* `nginxPrefix`: The NGINX prefix as specified in the `./configure` command flag `--prefix`.  In most cases, you can find the prefix on your target machine by running `nginx -V` on that machine.
+
+* `nginxModulesPath`: Where NGINX is configured to look for modules, relative to the `nginxPrefix` config option. In most cases, you can find the module path on your target machine by running `nginx -V` on that machine.
 
 ## Command Reference
 | Command                    | description                                                             |

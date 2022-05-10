@@ -16,7 +16,10 @@ import chalk from 'chalk';
 // Argument parsing
 import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
-import { promises as fs } from 'fs';
+import { open, promises as fs } from 'fs';
+
+// Templating
+import Handlebars from 'handlebars';
 
 // The below is necessary because `__filename`
 // and `__dirname` are not available in .mjs context
@@ -25,13 +28,87 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const rootDir = path.resolve(__dirname, '..');
 
-const DISALLOWED_FILES = ['.DS_Store', 'Thumbs.db', 'PURPOSE.md'];
+const DISALLOWED_FILES = ['.DS_Store', 'Thumbs.db', 'PURPOSE.md', '.gitkeep'];
+const IGNORED_RELEASE_NAME = 'njsBuildIgnore';
+
+
+const DEFAULT_ENV = 'dev';
+
+// #=====================================
+// # Parse Arguments and set environment
+// #=====================================
+
+const argv = yargs(hideBin(process.argv)).argv;
+const nonFlagArgs = argv._;
+const envArg = nonFlagArgs && nonFlagArgs.length ? nonFlagArgs[0].toLowerCase() : DEFAULT_ENV;
+console.log(`argv ${JSON.stringify(argv)}`);
+
+const prefixOverride = argv.nginxPrefix || null;
+const nginxModulesPathOverride = argv.nginxModulePath || null;
+const nginxBinPathOverride = argv.nginxBinPath || null;
 
 const ENVS = {
-  dev: ['clean', 'copyNginxConfig', 'copyMisc', 'copyScripts', 'reloadConfig'],
-  test: ['clean', 'copyNginxConfig', 'copyMisc', 'copyScripts', 'reloadConfig'],
-  release: ['clean', 'copyNginxConfig', 'copyMisc', 'copyScripts', 'package'],
+  dev: {
+    steps: [
+      'clean',
+      'copyNginxConfig',
+      'copyMisc',
+      'copyScripts',
+      'reloadConfig',
+    ],
+    config: async () => {
+      return {
+        [IGNORED_RELEASE_NAME]: {
+          nginxBinPath: nginxBinPathOverride || path.join(rootDir, '_internal', 'bin', 'nginx'),
+          buildName: 'build:dev',
+          releaseRoot: './',
+          nginxPrefix: prefixOverride || path.join(rootDir, '_internal', 'install', 'nginx'),
+          nginxModulesPath: nginxModulesPathOverride || path.join('_internal', 'install', 'nginx', 'modules'),
+        },
+      };
+    },
+  },
+  test: {
+    steps: [
+      'clean',
+      'copyNginxConfig',
+      'copyMisc',
+      'copyScripts',
+      'reloadConfig',
+    ],
+    config: async () => {
+      return {
+        [IGNORED_RELEASE_NAME]: {
+          nginxBinPath: nginxBinPathOverride || path.join(rootDir, '_internal', 'bin', 'nginx'),
+          buildName: 'build:test',
+          releaseRoot: './',
+          nginxPrefix: prefixOverride || path.join(rootDir, '_internal', 'install', 'nginx'),
+          nginxModulesPath: nginxModulesPathOverride || path.join('_internal', 'install', 'nginx', 'modules'),
+        },
+      };
+    },
+  },
+  release: {
+    steps: ['clean', 'copyNginxConfig', 'copyMisc', 'copyScripts', 'package'],
+    config: async () => {
+      const {
+        default: { releases },
+      } = await import(`${rootDir}/package.json`, { assert: { type: 'json' } });
+
+      return releases;
+    },
+  },
 };
+
+if (!envArg || !ENVS[envArg]) {
+  console.log(
+    chalk.red(
+      `Unknown build env: '${nonFlagArgs[0]}'\nPlease specify one of \`dev\`, \`test\`, or \`release\``
+    )
+  );
+
+  process.exit(1);
+}
 
 const BUILD_STEPS = {
   clean: cleanBuildDir,
@@ -47,25 +124,6 @@ const BUILD_STEPS = {
   package: packageRelease,
 };
 
-const DEFAULT_ENV = 'dev';
-
-// #=====================================
-// # Parse Arguments and set environment
-// #=====================================
-
-const argv = yargs(hideBin(process.argv)).argv._;
-const envArg = argv && argv.length ? argv[0].toLowerCase() : DEFAULT_ENV;
-
-if (!envArg || !ENVS[envArg]) {
-  console.log(
-    chalk.red(
-      `Unknown build env: '${argv[0]}'\nPlease specify one of \`dev\`, \`test\`, or \`release\``
-    )
-  );
-
-  process.exit(1);
-}
-
 // #===========================
 // # Build process starts here
 // #===========================
@@ -75,51 +133,46 @@ runBuild(envArg);
 // # Build Runner
 // #==============
 async function runBuild(env) {
+  const releaseConfigs = await ENVS[env].config();
+
   const buildBasePath = `${rootDir}/_build/${env}`;
   const config = {
     env,
-    steps: ENVS[env],
+    steps: ENVS[env].steps,
     buildBasePath,
     nginxConfigSrcPath: `${rootDir}/src/conf`,
     envSpecificFilesSrcPath: `${rootDir}/env`,
     jsBundlesSrcPath: `${rootDir}/_build/js_bundles`,
-    jsBundlesDestPath: `${buildBasePath}/scripts`,
   };
 
-  if (env === 'release') {
-    const {
-      default: { releases },
-    } = await import(`${rootDir}/package.json`, { assert: { type: 'json' } });
-    const builds = [];
 
-    for (const [name, releaseSpecificConfig] of Object.entries(releases)) {
-      const archiveBasePath = path.join(
-          buildBasePath,
-          name,
-          releaseSpecificConfig.version
-        );
 
-      const releaseBuildBasePath = path.join(
-        archiveBasePath,
-        releaseSpecificConfig.nginxRoot
-      );
+  for (const [name, releaseSpecificConfig] of Object.entries(releaseConfigs)) {
+    const archiveBasePath = path.join(
+      buildBasePath,
+      // HACK: for dev and test, don't build the release name's folder
+      name === IGNORED_RELEASE_NAME ? '' : name,
+      // Version is not required
+      releaseSpecificConfig.version || ''
+    );
 
-      const releaseConfig = Object.assign(config, releaseSpecificConfig, {
-        buildName: `Release:${releaseIdentifier(
-          name,
-          releaseSpecificConfig.version
-        )}`,
-        releaseName: name,
-        archiveBasePath,
-        buildBasePath: releaseBuildBasePath,
-        jsBundlesDestPath: path.join(releaseBuildBasePath, 'scripts'),
-      });
+    const releaseBuildBasePath = path.join(
+      archiveBasePath,
+      releaseSpecificConfig.releaseRoot
+    );
 
-      await runPipeline(releaseConfig);
-    }
-
-  } else {
-    await runPipeline(Object.assign(config, { buildName: `Build:${env}` }));
+    const releaseConfig = Object.assign(config, releaseSpecificConfig, {
+      buildName: releaseSpecificConfig.buildName || `release:${releaseIdentifier(
+        name,
+        releaseSpecificConfig.version
+      )}`,
+      releaseName: name,
+      archiveBasePath,
+      buildBasePath: releaseBuildBasePath,
+      jsBundlesDestPath: path.join(releaseBuildBasePath, 'scripts')
+    });
+    console.log(releaseConfig);
+    await runPipeline(releaseConfig);
   }
 }
 
@@ -148,8 +201,9 @@ async function packageRelease({ archiveBasePath, releaseName, version }) {
   console.log(chalk.green(`Release built to ${archivePath}`));
 }
 
-async function reloadNginxWithBuiltConfig({ buildBasePath }) {
+async function reloadNginxWithBuiltConfig({ buildBasePath,  nginxBinPath }) {
   await execFile(path.join(__dirname, 'start_or_reload_with_config.sh'), [
+    nginxBinPath,
     path.join(buildBasePath, 'nginx.conf'),
   ]);
 }
@@ -185,6 +239,8 @@ async function copyEnvSpecificFiles({
   env,
   buildBasePath,
   envSpecificFilesSrcPath,
+  nginxPrefix,
+  nginxModulesPath
 }) {
   const configFilePatternForEnv = new RegExp(`\.${env}\.`, 'gi');
   await forFilesInDirectory(
@@ -195,13 +251,21 @@ async function copyEnvSpecificFiles({
         const filename = path.basename(filePath);
         if (!configFilePatternForEnv.test(filename)) return;
 
-        await copyFileRelativeToBase(
+        const newFilePath = await copyFileRelativeToBase(
           buildBasePath,
           envSpecificFilesSrcPath,
           filePath,
           operationName,
           (filename) => filename.replace(configFilePatternForEnv, '.')
         );
+
+        const fileContent = await fs.readFile(newFilePath, 'utf8');
+        const template = Handlebars.compile(fileContent);
+
+        const moduelPathRelativeToPrefix = path.relative(nginxPrefix, nginxModulesPath);
+        const nginxModulesPathAbsolute = path.resolve(nginxPrefix, moduelPathRelativeToPrefix);
+        await fs.writeFile(newFilePath, template({ nginxModulesPathAbsolute }));
+
       } else if (directory) {
         await createDirRelativeToBase(
           buildBasePath,
@@ -297,6 +361,7 @@ async function copyFileRelativeToBase(
 
   console.log(`[${operationName}] Copy file: ${filePath} to ${destPath}`);
   await fs.copyFile(filePath, destPath);
+  return destPath;
 }
 
 async function createDirRelativeToBase(

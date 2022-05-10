@@ -1,0 +1,10 @@
+services:
+  dev:
+    build:
+      context: .
+      dockerfile: _internal/Dockerfile
+    ports:
+      - "8082:8082"
+    volumes:
+      - .:/create-njs-app
+    privileged: true

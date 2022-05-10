@@ -4,10 +4,12 @@
   "description": "Create, build, and test [NJS](https://nginx.org/en/docs/njs/) addons for NGINX.",
   "main": "src/script.js",
   "scripts": {
+    "docker:up": "docker-compose up &d",
+    "docker:down": "docker-compose down",
     "njs": "./_internal/njs",
     "build": "./_internal/build.mjs dev",
-    "test:unit": "./_internal/bundle_with_transpile.sh && njs ./test/support/runner-unit.mjs",
-    "test:integration": "./_internal/build.mjs test && node ./test/support/runner-integration.mjs",
+    "test:unit": "./_internal/bundle_with_transpile.sh && _internal/bin/njs ./test/support/runner-unit.mjs",
+    "test:integration": "./_internal/run_integration.sh",
     "clean": "rm -rf ./_build/*",
     "release": "./_internal/build.mjs release"
   },
@@ -20,7 +22,10 @@
     "babel-loader": "^8.2.4",
     "chalk": "^5.0.1",
     "core-js": "^3.21.1",
+    "handlebars": "^4.7.7",
+    "install": "^0.13.0",
     "lodash.isequal": "^4.5.0",
+    "npm": "^8.8.0",
     "power-assert": "^1.6.1",
     "webpack-cli": "^4.9.2",
     "yargs": "^17.4.1"
@@ -28,7 +33,9 @@
   "releases": {
     "my_release": {
       "version": "0.0.1",
-      "nginxRoot": "./"
+      "releaseRoot": "./",
+      "nginxPrefix": "/usr/local/nginx",
+      "nginxModulesPath": "./modules"
     }
   }
 }
