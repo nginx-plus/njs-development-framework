@@ -43,7 +43,7 @@ RUN git clone https://github.com/asdf-vm/asdf.git $HOME/.asdf --branch v0.10.0; 
     asdf plugin add nodejs https://github.com/asdf-vm/asdf-nodejs.git; \
     cat .tool-versions > $HOME/.tool-versions; \
     asdf install; \
-    npm install -g npm@8.9.0; \
+    npm install -g npm@latest; \
     apt-get purge --yes --auto-remove make git gcc curl libpcre2-dev libssl-dev zlib1g-dev; \
     rm -rf \
       /var/lib/apt/lists/* \

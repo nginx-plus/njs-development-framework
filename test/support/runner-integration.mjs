@@ -58,9 +58,11 @@ import basicTest from '../integration/basic.test.mjs';
 // Add tests to suite
 basicTest(suite, assert, request);
 
-// Currently we don't have insight into the final details of
-// the test due to the async nature of the tests and njs'
-// buggy behavior with async/await
 suite.run().then((result) => {
-  console.log('🐳 Tests finished! 🐳');
+  if (result.fail.length === 0) {
+    console.log('🐳 Tests finished: No failures! 🐳');
+  } else {
+    console.log(`❌ Tests finished with ${result.fail.length} failure(s) ❌`)
+    process.exitCode = 1
+  }
 });

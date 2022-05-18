@@ -8,7 +8,7 @@
     "docker:down": "docker-compose down",
     "njs": "./_internal/njs",
     "build": "./_internal/build.mjs dev",
-    "test:unit": "./_internal/bundle_with_transpile.sh && _internal/bin/njs ./test/support/runner-unit.mjs",
+    "test:unit": "./_internal/bundle_with_transpile.sh && njs ./test/support/runner-unit.mjs",
     "test:integration": "./_internal/run_integration.sh",
     "clean": "rm -rf ./_build/*",
     "release": "./_internal/build.mjs release"

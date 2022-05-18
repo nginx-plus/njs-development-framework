@@ -4,24 +4,6 @@ set -o errexit  # abort on nonzero exit status
 set -o nounset  # abort on unbound variable
 set -o pipefail # don't hide errors within pipes
 
-#===============================
-# 0. Make sure node is installed
-#===============================
-
-if ! command -v node > /dev/null ; then
-cat << EOF
-Node.js is not installed on your system and is required for setup.
-We suggest using a version manager to install node:
-
-* asdf: https://github.com/asdf-vm/asdf-nodejs
-
-* nvm: https://nodejs.org/en/download/package-manager/#nvm
-
-Alternately, you can find an installation method that works for you at:
-https://nodejs.org/en/download/
-EOF
-fi
-
 #=======================================
 # 1. Figure out where the bundles go
 #    and what webpack config to use.

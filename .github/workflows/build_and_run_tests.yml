@@ -1,0 +1,162 @@
+name: build-and-test
+on: [push]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  build-and-push-image:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    outputs:
+      image_name: ${{ steps.get-build-name.outputs.image_name }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Log in to the Container registry
+        uses: docker/login-action@v2
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Cache Docker layers
+        uses: actions/cache@v2
+        with:
+          path: /tmp/.buildx-cache
+          key: ${{ runner.os }}-buildx-${{ hashFiles('_internal/Dockerfile') }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-
+
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@98669ae865ea3cffbcbaa878cf57c20bbf1c6c38
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+
+      - name: Build and push
+        id: docker-push
+        uses: docker/build-push-action@v3
+        with:
+          context: .
+          push: true
+          file: _internal/Dockerfile
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=local,src=/tmp/.buildx-cache
+          cache-to: type=local,dest=/tmp/.buildx-cache-new
+
+      - id: get-build-name
+        run: |
+          imageName=${{ fromJSON(steps.docker-push.outputs.metadata)['image.name'] }}
+          echo "::set-output name=image_name::$imageName"
+
+      - name: Move cache
+        run: |
+          rm -rf /tmp/.buildx-cache
+          mv /tmp/.buildx-cache-new /tmp/.buildx-cache
+
+  run-unit-tests:
+    needs: build-and-push-image
+    runs-on: ubuntu-latest
+
+    container:
+      image: ${{needs.build-and-push-image.outputs.image_name}}
+      credentials:
+         username: ${{ github.actor }}
+         password: ${{ secrets.GITHUB_TOKEN }}
+      env:
+        # This is take from the `PATH` variable in the target docker container.  The HOME variable
+        # will be overridden even if set here.
+        PATH: /root/.asdf/shims:/root/.asdf/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+    steps:
+      # When using `container` to run jobs in a container, github forcefully rewrites the `HOME` variable
+      # This causes scripts that reference that variable to behave unpredictably. This step sets the
+      # variable back to the root user.
+      - name: Reset HOME variable forced by Github Actions
+        run: 'echo HOME=/root | tee -a $GITHUB_ENV'
+
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Cache dependencies
+        uses: actions/cache@v2
+        with:
+          path: ~/.npm
+          key: npm-${{ hashFiles('package-lock.json') }}
+          restore-keys: npm-
+
+      # This step is necessary because npm cli v8 implicitly derives the user to run scripts
+      # as from the owner of the executing directory.  In the GH actions env this turns
+      # out to be user 1001 (probably what does the git pull).
+      - name: Own all files and directories for npm install
+        run : |
+          mkdir node_modules
+          chown -hR root:root /__w/create-njs-app/*
+
+      # NPM ci strictly installs from the `package-lock.json` file
+      - name: Install node deps
+        run: npm ci
+
+      - name: Run unit tests
+        run: npm run test:unit
+
+  run-integration-tests:
+    needs: build-and-push-image
+    runs-on: ubuntu-latest
+
+    container:
+      image: ${{needs.build-and-push-image.outputs.image_name}}
+      credentials:
+         username: ${{ github.actor }}
+         password: ${{ secrets.GITHUB_TOKEN }}
+      env:
+        # This is take from the `PATH` variable in the target docker container.  The HOME variable
+        # will be overridden even if set here.
+        PATH: /root/.asdf/shims:/root/.asdf/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+    steps:
+      # When using `container` to run jobs in a container, github forcefully rewrites the `HOME` variable
+      # This causes scripts that reference that variable to behave unpredictably. This step sets the
+      # variable back to the root user.
+      - name: Reset HOME variable forced by Github Actions
+        run: 'echo HOME=/root | tee -a $GITHUB_ENV'
+
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Cache dependencies
+        uses: actions/cache@v2
+        with:
+          path: ~/.npm
+          key: npm-${{ hashFiles('package-lock.json') }}
+          restore-keys: npm-
+
+      # This step is necessary because npm cli v8 implicitly derives the user to run scripts
+      # as from the owner of the executing directory.  In the GH actions env this turns
+      # out to be user 1001 (probably what does the git pull).
+      - name: Own all files and directories for npm install
+        run : |
+          mkdir node_modules
+          chown -hR root:root /__w/create-njs-app/*
+
+      # NPM ci strictly installs from the `package-lock.json` file
+      - name: Install node deps
+        run: npm ci
+
+      - name: Run integration tests
+        run: npm run test:integration -- --nginx-bin-path=nginx --nginx-module-path=/usr/lib/nginx/modules

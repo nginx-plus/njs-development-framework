@@ -32,9 +32,15 @@ import anotherScriptTest from '../unit/another-script.test.mjs';
 scriptTest(suite, assert);
 anotherScriptTest(suite, assert);
 
-// Currently we don't have insight into the final details of
-// the test due to the async nature of the tests and njs'
-// buggy behavior with async/await
 suite.run().then((result) => {
-  console.log("🐳 Tests finished! 🐳");
+  if (result.fail.length === 0) {
+    console.log('🐳 Tests finished! 🐳');
+  } else {
+    console.log(`❌ Tests finished with ${result.fail.length} failure(s) ❌`);
+
+    // This is necessary since njs does not support `process.exit`
+    // It will lead to a slightly strange message "Error: unhandled promise rejection:"
+    // But it's the best we can do without `process.exit`
+    throw 'Exit 1';
+  }
 });

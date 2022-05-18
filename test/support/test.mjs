@@ -64,13 +64,18 @@ export default function Test(headline) {
   self.run = () => {
     console.log(headline + " ");
     const tests = suite.map((test) => runTestAsync(test));
-    const firstTest = tests.splice(0, 1)[0];
+    return Promise.all(tests)
+      .then((results) => {
+        return results.reduce((acc, result) => {
+          if (result.success) {
+            acc.success.push(result);
+          } else {
+            acc.fail.push(result);
+          }
 
-    return tests.reduce((prev, current) => {
-      return prev.then((result) => {
-        return current;
-      });
-    }, firstTest);
+          return acc;
+        }, { success: [], fail: [], total: results.length });
+      })
   };
 
   return self;
