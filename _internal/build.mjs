@@ -148,7 +148,7 @@ async function runBuild(env) {
 
 
   for (const [name, releaseSpecificConfig] of Object.entries(releaseConfigs)) {
-    const archiveBasePath = path.join(
+    const releaseBasePath = path.join(
       buildBasePath,
       // HACK: for dev and test, don't build the release name's folder
       name === IGNORED_RELEASE_NAME ? '' : name,
@@ -157,7 +157,7 @@ async function runBuild(env) {
     );
 
     const releaseBuildBasePath = path.join(
-      archiveBasePath,
+      releaseBasePath,
       releaseSpecificConfig.releaseRoot
     );
 
@@ -167,7 +167,6 @@ async function runBuild(env) {
         releaseSpecificConfig.version
       )}`,
       releaseName: name,
-      archiveBasePath,
       buildBasePath: releaseBuildBasePath,
       jsBundlesDestPath: path.join(releaseBuildBasePath, 'scripts')
     });
@@ -186,19 +185,23 @@ async function runPipeline(config) {
 // #==============
 // # Build Steps
 // #==============
-async function packageRelease({ archiveBasePath, releaseName, version }) {
-  const archiveFilename = `${releaseIdentifier(releaseName, version)}.tar.gz`;
-  const archivePath = path.join(archiveBasePath, archiveFilename);
+async function packageRelease({ buildBasePath, releaseName, version, env }) {
+  // This is an absolute path leading to `_build/${env}`
+  const envBuildDirPath = path.resolve(buildBasePath, path.join(rootDir, '_build', env));
 
-  // Create the archive
-  // The file must be created first since it exists at the base
-  // and must be ignored.
-  await fs.open(archivePath, 'w');
+  const archiveFilename = `${releaseIdentifier(releaseName, version)}.tar.gz`;
+  const archivePath = path.join(
+    envBuildDirPath,
+    archiveFilename
+  );
+
   await exec(
-    `tar -C ${archiveBasePath} -czf ${archivePath} --exclude ${archiveFilename} .`
+    `tar -C ${buildBasePath} -czf ${archivePath} .`
   );
 
   console.log(chalk.green(`Release built to ${archivePath}`));
+
+  await fs.rm(path.join(envBuildDirPath, releaseName), { recursive: true, force: true });
 }
 
 async function reloadNginxWithBuiltConfig({ buildBasePath,  nginxBinPath }) {
