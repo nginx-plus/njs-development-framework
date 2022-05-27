@@ -1,5 +1,4 @@
-# This includes the njs dynamic module
-include njs_module.conf;
+load_module {{nginxModulesPathAbsolute}}/ngx_http_js_module.so;
 
 events {}
 

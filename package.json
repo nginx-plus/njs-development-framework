@@ -37,5 +37,18 @@
       "nginxPrefix": "/usr/local/nginx",
       "nginxModulesPath": "./modules"
     }
+  },
+  "configuration": {
+    "dev": {
+      "config": {
+        "foo": "qux"
+      }
+    },
+    "test": {},
+    "default": {
+      "config": {
+        "foo": "bar"
+      }
+    }
   }
 }

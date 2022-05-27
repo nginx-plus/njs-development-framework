@@ -16,7 +16,7 @@ import chalk from 'chalk';
 // Argument parsing
 import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
-import { open, promises as fs } from 'fs';
+import { promises as fs } from 'fs';
 
 // Templating
 import Handlebars from 'handlebars';
@@ -31,7 +31,6 @@ const rootDir = path.resolve(__dirname, '..');
 const DISALLOWED_FILES = ['.DS_Store', 'Thumbs.db', 'PURPOSE.md', '.gitkeep'];
 const IGNORED_RELEASE_NAME = 'njsBuildIgnore';
 
-
 const DEFAULT_ENV = 'dev';
 
 // #=====================================
@@ -40,12 +39,16 @@ const DEFAULT_ENV = 'dev';
 
 const argv = yargs(hideBin(process.argv)).argv;
 const nonFlagArgs = argv._;
-const envArg = nonFlagArgs && nonFlagArgs.length ? nonFlagArgs[0].toLowerCase() : DEFAULT_ENV;
-console.log(`argv ${JSON.stringify(argv)}`);
+const envArg =
+  nonFlagArgs && nonFlagArgs.length
+    ? nonFlagArgs[0].toLowerCase()
+    : DEFAULT_ENV;
 
-const prefixOverride = argv.nginxPrefix || null;
-const nginxModulesPathOverride = argv.nginxModulePath || null;
-const nginxBinPathOverride = argv.nginxBinPath || null;
+const BUILD_FLAGS = {
+  prefixOverride: argv.nginxPrefix || null,
+  nginxModulesPathOverride: argv.nginxModulePath || null,
+  nginxBinPathOverride: argv.nginxBinPath || null,
+};
 
 const ENVS = {
   dev: {
@@ -57,14 +60,25 @@ const ENVS = {
       'reloadConfig',
     ],
     config: async () => {
+      const {
+        default: { configuration },
+      } = await import(`${rootDir}/package.json`, { assert: { type: 'json' } });
+
+      const frameworkDefaults = {
+        nginxBinPath: path.join(rootDir, '_internal', 'bin', 'nginx'),
+        buildName: 'build:dev',
+        releaseRoot: './',
+        nginxPrefix: path.join(rootDir, '_internal', 'install', 'nginx'),
+        nginxModulesPath: path.join('_internal', 'install', 'nginx', 'modules'),
+      };
+
+      const finalConfig = resolveConfig(
+        configuration.dev,
+        Object.assign(frameworkDefaults, configuration.default || {})
+      );
+
       return {
-        [IGNORED_RELEASE_NAME]: {
-          nginxBinPath: nginxBinPathOverride || path.join(rootDir, '_internal', 'bin', 'nginx'),
-          buildName: 'build:dev',
-          releaseRoot: './',
-          nginxPrefix: prefixOverride || path.join(rootDir, '_internal', 'install', 'nginx'),
-          nginxModulesPath: nginxModulesPathOverride || path.join('_internal', 'install', 'nginx', 'modules'),
-        },
+        [IGNORED_RELEASE_NAME]: finalConfig,
       };
     },
   },
@@ -77,14 +91,25 @@ const ENVS = {
       'reloadConfig',
     ],
     config: async () => {
+      const {
+        default: { configuration },
+      } = await import(`${rootDir}/package.json`, { assert: { type: 'json' } });
+
+      const frameworkDefaults = {
+        nginxBinPath: path.join(rootDir, '_internal', 'bin', 'nginx'),
+        buildName: 'build:test',
+        releaseRoot: './',
+        nginxPrefix: path.join(rootDir, '_internal', 'install', 'nginx'),
+        nginxModulesPath: path.join('_internal', 'install', 'nginx', 'modules'),
+      };
+
+      const finalConfig = resolveConfig(
+        configuration.test,
+        Object.assign(frameworkDefaults, configuration.default || {})
+      );
+
       return {
-        [IGNORED_RELEASE_NAME]: {
-          nginxBinPath: nginxBinPathOverride || path.join(rootDir, '_internal', 'bin', 'nginx'),
-          buildName: 'build:test',
-          releaseRoot: './',
-          nginxPrefix: prefixOverride || path.join(rootDir, '_internal', 'install', 'nginx'),
-          nginxModulesPath: nginxModulesPathOverride || path.join('_internal', 'install', 'nginx', 'modules'),
-        },
+        [IGNORED_RELEASE_NAME]: finalConfig,
       };
     },
   },
@@ -145,7 +170,9 @@ async function runBuild(env) {
     jsBundlesSrcPath: `${rootDir}/_build/js_bundles`,
   };
 
-
+  const {
+    default: { configuration },
+  } = await import(`${rootDir}/package.json`, { assert: { type: 'json' } });
 
   for (const [name, releaseSpecificConfig] of Object.entries(releaseConfigs)) {
     const releaseBasePath = path.join(
@@ -162,16 +189,23 @@ async function runBuild(env) {
     );
 
     const releaseConfig = Object.assign(config, releaseSpecificConfig, {
-      buildName: releaseSpecificConfig.buildName || `release:${releaseIdentifier(
-        name,
-        releaseSpecificConfig.version
-      )}`,
+      buildName:
+        releaseSpecificConfig.buildName ||
+        `release:${releaseIdentifier(name, releaseSpecificConfig.version)}`,
       releaseName: name,
       buildBasePath: releaseBuildBasePath,
       jsBundlesDestPath: path.join(releaseBuildBasePath, 'scripts')
     });
-    console.log(releaseConfig);
-    await runPipeline(releaseConfig);
+
+    const finalReleaseConfig = resolveConfig(releaseConfig, configuration.default);
+
+    finalReleaseConfig.templateVars = buildTemplateVars(finalReleaseConfig);
+    console.log(
+      `Running build in env ${env} with config: `,
+      finalReleaseConfig
+    );
+
+    await runPipeline(finalReleaseConfig);
   }
 }
 
@@ -187,24 +221,25 @@ async function runPipeline(config) {
 // #==============
 async function packageRelease({ buildBasePath, releaseName, version, env }) {
   // This is an absolute path leading to `_build/${env}`
-  const envBuildDirPath = path.resolve(buildBasePath, path.join(rootDir, '_build', env));
+  const envBuildDirPath = path.resolve(
+    buildBasePath,
+    path.join(rootDir, '_build', env)
+  );
 
   const archiveFilename = `${releaseIdentifier(releaseName, version)}.tar.gz`;
-  const archivePath = path.join(
-    envBuildDirPath,
-    archiveFilename
-  );
+  const archivePath = path.join(envBuildDirPath, archiveFilename);
 
-  await exec(
-    `tar -C ${buildBasePath} -czf ${archivePath} .`
-  );
+  await exec(`tar -C ${buildBasePath} -czf ${archivePath} .`);
 
   console.log(chalk.green(`Release built to ${archivePath}`));
 
-  await fs.rm(path.join(envBuildDirPath, releaseName), { recursive: true, force: true });
+  await fs.rm(path.join(envBuildDirPath, releaseName), {
+    recursive: true,
+    force: true,
+  });
 }
 
-async function reloadNginxWithBuiltConfig({ buildBasePath,  nginxBinPath }) {
+async function reloadNginxWithBuiltConfig({ buildBasePath, nginxBinPath }) {
   await execFile(path.join(__dirname, 'start_or_reload_with_config.sh'), [
     nginxBinPath,
     path.join(buildBasePath, 'nginx.conf'),
@@ -217,16 +252,22 @@ async function cleanBuildDir({ buildBasePath, jsBundlesSrcPath }) {
   await fs.mkdir(buildBasePath, { recursive: true });
 }
 
-async function copyNginxConfigFiles({ buildBasePath, nginxConfigSrcPath }) {
+async function copyNginxConfigFiles({
+  buildBasePath,
+  nginxConfigSrcPath,
+  templateVars,
+}) {
   await forFilesInDirectory(nginxConfigSrcPath, async (filePath, directory) => {
     const operationName = 'Nginx Config';
     if (filePath) {
-      await copyFileRelativeToBase(
+      const newFilePath = await copyFileRelativeToBase(
         buildBasePath,
         nginxConfigSrcPath,
         filePath,
         operationName
       );
+
+      await performTemplating(newFilePath, templateVars);
     } else if (directory) {
       await createDirRelativeToBase(
         buildBasePath,
@@ -242,10 +283,10 @@ async function copyEnvSpecificFiles({
   env,
   buildBasePath,
   envSpecificFilesSrcPath,
-  nginxPrefix,
-  nginxModulesPath
+  templateVars,
 }) {
   const configFilePatternForEnv = new RegExp(`\.${env}\.`, 'gi');
+
   await forFilesInDirectory(
     envSpecificFilesSrcPath,
     async (filePath, directory) => {
@@ -262,13 +303,7 @@ async function copyEnvSpecificFiles({
           (filename) => filename.replace(configFilePatternForEnv, '.')
         );
 
-        const fileContent = await fs.readFile(newFilePath, 'utf8');
-        const template = Handlebars.compile(fileContent);
-
-        const moduelPathRelativeToPrefix = path.relative(nginxPrefix, nginxModulesPath);
-        const nginxModulesPathAbsolute = path.resolve(nginxPrefix, moduelPathRelativeToPrefix);
-        await fs.writeFile(newFilePath, template({ nginxModulesPathAbsolute }));
-
+        await performTemplating(newFilePath, templateVars);
       } else if (directory) {
         await createDirRelativeToBase(
           buildBasePath,
@@ -280,7 +315,11 @@ async function copyEnvSpecificFiles({
   );
 }
 
-async function bundleAndCopyScripts({ jsBundlesDestPath, jsBundlesSrcPath }) {
+async function bundleAndCopyScripts(buildConfig) {
+  const { jsBundlesDestPath, jsBundlesSrcPath, templateVars } = buildConfig;
+  const configFileForBundle = path.join(rootDir, 'src', 'scripts', 'config.mjs');
+  // Write all the config variables to a file that can be included. TODO: probably should have this be some separate thing
+  await fs.writeFile(configFileForBundle, `export default ${JSON.stringify(templateVars)};`, { flag: 'w+' });
   await fs.mkdir(jsBundlesDestPath, { recursive: true });
   await execFile(`${__dirname}/bundle_with_transpile.sh`, []);
   await forFilesInDirectory(jsBundlesSrcPath, async (filePath) => {
@@ -295,23 +334,25 @@ async function bundleAndCopyScripts({ jsBundlesDestPath, jsBundlesSrcPath }) {
       );
     }
   });
+
+  // Since this file is generated on build and needs to be in src for the bundling step, remove it after we have bundled
+  await fs.rm(configFileForBundle);
 }
 
 // #==============================================================
 // # Helper functions
 // #==============================================================
 async function forFilesInDirectory(baseDirectoryPath, callback) {
-  const files = [];
   const filenames = await fs.readdir(baseDirectoryPath);
 
   let paths = filenames.map((filename) => `${baseDirectoryPath}/${filename}`);
 
   for (let path of paths) {
-    const fileInfo = await fs.stat(path);
+    const statResult = await fs.stat(path);
 
-    if (fileInfo.isFile()) {
+    if (statResult.isFile()) {
       await callback(path, null);
-    } else if (fileInfo.isDirectory()) {
+    } else if (statResult.isDirectory()) {
       await callback(null, path);
       forFilesInDirectory(path, callback);
     }
@@ -320,18 +361,19 @@ async function forFilesInDirectory(baseDirectoryPath, callback) {
   return paths;
 }
 
-async function moveMiscFilesToTargetDir({ buildBasePath }) {
+async function moveMiscFilesToTargetDir({ buildBasePath, templateVars }) {
   const operationName = 'Copy /misc';
   const relPath = path.join(rootDir, 'misc');
-
   await forFilesInDirectory(relPath, async (filePath, directory) => {
     if (filePath) {
-      await copyFileRelativeToBase(
+      const newFilePath = await copyFileRelativeToBase(
         buildBasePath,
         relPath,
         filePath,
         operationName
       );
+
+      await performTemplating(newFilePath, templateVars);
     } else if (directory) {
       await createDirRelativeToBase(
         buildBasePath,
@@ -357,7 +399,6 @@ async function copyFileRelativeToBase(
 
   if (filenameTransformFn) {
     const pathWithoutFilename = destPath.replace(filename, '');
-
     const newFilename = filenameTransformFn(filename);
     destPath = path.join(pathWithoutFilename, newFilename);
   }
@@ -386,4 +427,52 @@ async function createDirRelativeToBase(
 
 function releaseIdentifier(name, version) {
   return `${name}-${version}`;
+}
+
+async function performTemplating(absoluteFilePath, templateVars) {
+  if (!absoluteFilePath || !absoluteFilePath.match(/\.template$/))
+    return absoluteFilePath;
+
+  const fileContent = await fs.readFile(absoluteFilePath, 'utf8');
+  const template = Handlebars.compile(fileContent);
+  const newAbsoluteFilepath = absoluteFilePath.replace(/\.template$/, '');
+  await fs.writeFile(newAbsoluteFilepath, template(templateVars));
+  await fs.rm(absoluteFilePath);
+
+  return newAbsoluteFilepath;
+}
+
+function buildTemplateVars({ nginxPrefix, nginxModulesPath, config = {} }) {
+  const modulePathRelativeToPrefix = path.relative(
+    nginxPrefix,
+    nginxModulesPath
+  );
+  const nginxModulesPathAbsolute = path.resolve(
+    nginxPrefix,
+    modulePathRelativeToPrefix
+  );
+  return Object.assign({}, config, { nginxPrefix, nginxModulesPathAbsolute });
+}
+
+function resolveConfig(mainConfig = {}, defaultConfig = {}) {
+  mainConfig.config = Object.assign({}, defaultConfig.config || {}, mainConfig.config || {});
+
+  const finalConfig = Object.assign(
+    // Make sure we don't mutate anything
+    {},
+    // Apply default config from package.json
+    defaultConfig,
+    // These are defaults that will be applied if no config of flags are supplied
+    mainConfig
+  );
+
+  // Flags win over everything
+  if (BUILD_FLAGS['nginxBinPathOverride'])
+    finalConfig['nginxBinPath'] = BUILD_FLAGS['nginxBinPathOverride'];
+  if (BUILD_FLAGS['nginxModulesPathOverride'])
+    finalConfig['nginxModulesPath'] = BUILD_FLAGS['nginxModulesPathOverride'];
+  if (BUILD_FLAGS['prefixOverride'])
+    finalConfig['nginxPrefix'] = BUILD_FLAGS['prefixOverride'];
+
+  return finalConfig;
 }
