@@ -33,7 +33,10 @@ for i in "${TRANSPILED_FILES_DIR}"/*.mjs; do
   # in njs.
 
   # If a default export was found, export it using 'export default XX' syntax.
-  sed -i -e 's/export { __webpack_exports__default as default };/export default __webpack_exports__default;/g' $i
+  # Avoid doing sed replacement in-place to minimize issues with docker and filesystem permissions (specifically VirtioFS)
+  cp $i /tmp
+  sed -i -e 's/export { __webpack_exports__default as default };/export default __webpack_exports__default;/g' "/tmp/$(basename $i)"
+  cat "/tmp/$(basename $i)" >$i
 done
 
 

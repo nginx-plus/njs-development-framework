@@ -14,13 +14,13 @@ Create, build, and test [NJS](https://nginx.org/en/docs/njs/) addons for NGINX.
   - [ ] Enumerate differences from other popular interpreters
 
 - [ ] Think about an app generation pattern (see `create-react-app`) or maybe something like old `yeoman` (look at https://github.com/jondot/hygen)
-- [ ] Think about a cleaner pattern for scripts and maintaining an njs binary
+- [x] Think about a cleaner pattern for scripts and maintaining an njs binary
 - [x] Think about incorporating and actual nginx server in the test/dev loop
 - [ ] Package a release
   - [ ] Optional versioning
-  - [ ] CI build example
+  - [x] CI build example
   - [ ] Allow to choose between building one module or a whole config
-  - [ ] Allow inclusion of arbitrary files in package
+  - [x] Allow inclusion of arbitrary files in package
   - [ ] Allow free choice in file structure
 
 ## Getting Started
@@ -41,24 +41,44 @@ npm install
 
 ```
 
-3. Setting up NJS
-This will install the NJS commandline tool for you. Currently we assume that you have a compatible version of [pcre2](https://github.com/PhilipHazel/pcre2/releases)
-and [OpenSSL](https://www.openssl.org/source/) installed on your system.  Later versions of this README will provide guides to installing these tools
-from source or build the installation into the setup script.
+3. Setting up nginx and njs
+In order to run unit and integration tests it is required to have both `nginx` and `njs` installed on your system.
 
-The below script may take a while to run:
+By default, `create-njs-app` will use the `nginx` and `njs` executables in your `PATH`.  However, you may also specify the commands to use by setting the following in the `configuration` key in your `package.json`:
+```
+"configuration": {
+  "dev": {
+    "config": {}
+  },
+  "test": {
+    "config": {
+      "nginx_command": "/path/to/my/test/nginx",
+      "njs_command": "/path/to/my/test/njs"
+    }
+  },
+  "default": {
+    "config": {
+      "nginx_command": "/path/to/my/nginx",
+      "njs_command": "/path/to/my/njs"
+    }
+  }
+}
+```
 
-```
-./setup.sh
-```
+You can also supply these to the `test` command like this:
+`npm run test:integration -- --nginx-bin-path=/path/to/my/test/nginx`
+The paths specified can be either relative or absolute.  Paths to executables specified via the command line will override those in the `package.json`
+
+If you need help installing nginx and njs, please refer to <LINK TO GUIDE>
+
 <details>
   <summary>Using Docker</summary>
   If you prefer not to install dependencies from source, you can use docker.
   You may build the included Dockerfile with the following command:
-  `docker build -t my-nginx -f _internal/Dockerfile .`
+  `docker build -t my-nginx .`
 
   After that you can run various tasks like running unit tests:
-  `docker run -v $(pwd):/create-njs-app --rm my-nginx /bin/bash -l -c 'npm run test:unit'`
+  `docker run -v $(pwd):/create-njs-app --rm my-nginx /bin/bash -l -c 'npm run test:unit -- --nginx-bin-path=nginx --nginx-module-path=/usr/lib/nginx/modules'`
 
   Integration tests:
   `docker run -v $(pwd):/create-njs-app --rm my-nginx /bin/bash -l -c 'npm run test:integration -- --nginx-bin-path=nginx --nginx-module-path=/usr/lib/nginx/modules`
@@ -71,16 +91,17 @@ The below script may take a while to run:
   Once the docker image is running you can run any of the other actions:
 
   Unit tests:
-  `docker-compose exec dev /bin/bash -l -c 'npm run test:unit'`
+  `docker-compose exec dev /bin/bash -l -c 'npm run test:unit -- --nginx-bin-path=nginx --nginx-module-path=/usr/lib/nginx/modules'`
 
   Integration tests:
   `docker-compose exec dev /bin/bash -l -c 'npm run test:integration -- --nginx-bin-path=nginx --nginx-module-path=/usr/lib/nginx/modules'`
 
   Build a release:
-  `docker-compose exec dev /bin/bash -l -c 'npm run test:unit'`
+  `docker-compose exec dev /bin/bash -l -c 'npm run test:release'`
 </details>
 
-
+## Lifecycle Commands
+There are a set of commands 
 
 ## Usage
 The following example shows you how to write some njs code, import a dependency, and build it.
@@ -228,10 +249,22 @@ Using the above snippet as a reference configuration has the following effects:
 * `nginxModulesPath`: Where NGINX is configured to look for modules, relative to the `nginxPrefix` config option. In most cases, you can find the module path on your target machine by running `nginx -V` on that machine.
 
 ## Command Reference
-| Command                    | description                                                             |
-|----------------------------|-------------------------------------------------------------------------|
-| `npm run build`            | Builds the project and makes it available at `http://localhost:8082`    |
-| `npm run release`          | Builds the project and creates a folder structure in `./_build/release` |
-| `npm run test:unit`        | Runs the unit tests                                                     |
-| `npm run test:integration` | Runs the integration tests                                              |
-| `npm run clean`            | Removes all files and folders from the `_build` directory               |
+| Command                           | description                                                                   |
+|-----------------------------------|-------------------------------------------------------------------------      |
+| `npm run serve`                   | Builds the project and makes it available at `http://localhost:8082`          |
+| `npm run release`                 | Builds the project and creates a folder structure in `./_build/release`       |
+| `npm run test:unit`               | Runs the unit tests                                                           |
+| `npm run test:integration`        | Runs the integration tests                                                    |
+| `npm run clean`                   | Removes all files and folders from the `_build` directory                     |
+| `npm run docker:serve`            | Builds the project and makes it available at `http://localhost:8080` using the provided `Dockerfile`          |
+| `npm run docker:release`          | Builds the project and creates a folder structure in `./_build/release` using the provided `Dockerfile`       |
+| `npm run docker:test:unit`        | Runs the unit tests using the provided `Dockerfile`                           |
+| `npm run docker:test:integration` | Runs the integration tests using the provided `Dockerfile`                    |
+| `npm run docker:up`               | Starts the docker container.  This must be run before any `docker:` command   |
+| `npm run docker:down`             | Stops the docker container                                                    |
+
+
+
+You may prefix any of the commands with `docker:` (except `clean` since there is no benefit to executing that in the docker context) to execute the command in the supplied docker container.
+
+For example, `npm run docker:release`

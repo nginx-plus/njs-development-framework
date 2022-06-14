@@ -13,7 +13,6 @@ _internal/*
 !_internal/bundle_with_transpile.sh
 !_internal/build.sh
 !_internal/build.mjs
-!_internal/Dockerfile
 !_internal/webpack_transpilation_fixes.patch
 !_internal/start_or_reload_with_config.sh
 !_internal/run_integration.sh

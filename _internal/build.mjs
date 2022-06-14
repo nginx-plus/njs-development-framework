@@ -2,6 +2,8 @@
 
 // Node standard library modules
 import * as path from 'path';
+import os from 'os';
+const HOMEDIR = os.homedir();
 import { promisify } from 'util';
 import {
   execFile as execFileCallback,
@@ -66,12 +68,19 @@ const ENVS = {
         default: { configuration },
       } = await import(`${rootDir}/package.json`, { assert: { type: 'json' } });
 
+      // Defaults pulled from https://nginx.org/en/docs/configure.html
+      // It may be more expedient to have a config option
+      // That take an install method ie. homebrew, apt, snap, yum and then
+      // auto populate reasonable defaults. Could be a maintainance burden though
+      const nginxPrefix = path.join('usr', 'local', 'nginx');
+
       const frameworkDefaults = {
-        nginxBinPath: path.join(rootDir, '_internal', 'bin', 'nginx'),
+        nginxBinPath: 'nginx',
         buildName: 'build:dev',
         releaseRoot: './',
-        nginxPrefix: path.join(rootDir, '_internal', 'install', 'nginx'),
-        nginxModulesPath: path.join('_internal', 'install', 'nginx', 'modules'),
+        nginxPrefix: nginxPrefix,
+        nginxModulesPath: path.join(nginxPrefix, 'modules'),
+        nginxLogsBasePath: path.join(nginxPrefix, 'logs')
       };
 
       const finalConfig = resolveConfig(
@@ -100,12 +109,19 @@ const ENVS = {
         default: { configuration },
       } = await import(`${rootDir}/package.json`, { assert: { type: 'json' } });
 
+      // Defaults pulled from https://nginx.org/en/docs/configure.html
+      // It may be more expedient to have a config option
+      // That take an install method ie. homebrew, apt, snap, yum and then
+      // auto populate reasonable defaults. Could be a maintainance burden though
+      const nginxPrefix = path.join('usr', 'local', 'nginx');
+
       const frameworkDefaults = {
-        nginxBinPath: path.join(rootDir, '_internal', 'bin', 'nginx'),
+        nginxBinPath: path.join('nginx'),
         buildName: 'build:test',
         releaseRoot: './',
-        nginxPrefix: path.join(rootDir, '_internal', 'install', 'nginx'),
-        nginxModulesPath: path.join('_internal', 'install', 'nginx', 'modules'),
+        nginxPrefix: nginxPrefix,
+        nginxModulesPath: path.join(nginxPrefix, 'modules'),
+        nginxLogsBasePath: path.join(nginxPrefix, 'logs')
       };
 
       const finalConfig = resolveConfig(
@@ -469,14 +485,13 @@ async function performTemplating(absoluteFilePath, templateVars) {
 }
 
 function buildTemplateVars({ nginxPrefix, nginxModulesPath, config = {} }) {
-  const modulePathRelativeToPrefix = path.relative(
-    nginxPrefix,
-    nginxModulesPath
-  );
-  const nginxModulesPathAbsolute = path.resolve(
-    nginxPrefix,
-    modulePathRelativeToPrefix
-  );
+  let nginxModulesPathAbsolute;
+  if (path.isAbsolute(nginxModulesPath)) {
+    nginxModulesPathAbsolute = nginxModulesPath;
+  } else {
+    nginxModulesPathAbsolute = path.join(nginxPrefix, nginxModulesPath);
+  }
+
   return Object.assign({}, config, { nginxPrefix, nginxModulesPathAbsolute });
 }
 
@@ -500,5 +515,28 @@ function resolveConfig(mainConfig = {}, defaultConfig = {}) {
   if (BUILD_FLAGS['prefixOverride'])
     finalConfig['nginxPrefix'] = BUILD_FLAGS['prefixOverride'];
 
-  return finalConfig;
+  // A little hacky, but going over the main config and the user specified config
+  // only one level deep and normalizing any references to `~` or `$HOME`
+  // So that the rest of the flow can depend on the prefix being absolute, and
+  // the other paths being relative to the prefix
+  const finalUserSpecifiedConfig = Object.entries(finalConfig.config).reduce((acc, [k, v]) => {
+    acc[k] = handleHomeDirInPath(v);
+    return acc;
+  }, {})
+
+
+  return Object.entries(finalConfig).reduce((acc, [k, v]) => {
+    // don't process the `config` key since we already did so above
+    if (k === 'config') return acc;
+
+    acc[k] = handleHomeDirInPath(v);
+    return acc;
+  }, { config: finalUserSpecifiedConfig });
+}
+
+const HOME_REGEX = /^~|\$HOME/;
+function handleHomeDirInPath(filesystemPath) {
+  if (!HOME_REGEX.test(filesystemPath)) return filesystemPath;
+
+  return path.join(HOMEDIR, filesystemPath.replace(/^~|\$HOME/, ''));
 }

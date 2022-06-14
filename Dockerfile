@@ -1,11 +1,10 @@
-
 FROM nginx:1.21.6
 
 SHELL ["/bin/bash", "-c"]
 
 WORKDIR /
 
-ADD _internal/webpack_transpilation_fixes.patch /webpack_transpilation_fixes.patch
+ADD /njs_src_fixes.patch /njs_src_fixes.patch
 ADD .tool-versions /
 
 RUN set -eux \
@@ -18,7 +17,7 @@ RUN set -eux \
     cd /tmp; \
     git clone https://github.com/nginx/njs.git; \
     cd /tmp/njs; \
-    git apply /webpack_transpilation_fixes.patch; \
+    git apply /njs_src_fixes.patch; \
     ./configure; \
     make; \
     NJS_PATH="$(which njs)"; \
@@ -50,8 +49,6 @@ RUN git clone https://github.com/asdf-vm/asdf.git $HOME/.asdf --branch v0.10.0; 
       /tmp/*;
 
 RUN mkdir -p /create-njs-app
-
-ENV CNA_NGINX=nginx
 
 WORKDIR /create-njs-app
 
