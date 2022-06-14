@@ -56,7 +56,9 @@ const ENVS = {
       'clean',
       'copyNginxConfig',
       'copyMisc',
+      'generateConfigJsModule',
       'copyScripts',
+      'cleanupConfigJsModule',
       'reloadConfig',
     ],
     config: async () => {
@@ -87,7 +89,10 @@ const ENVS = {
       'clean',
       'copyNginxConfig',
       'copyMisc',
+      'generateConfigJsModule',
       'copyScripts',
+      'copyConfigJsModuleToTestContext',
+      'cleanupConfigJsModule',
       'reloadConfig',
     ],
     config: async () => {
@@ -114,7 +119,15 @@ const ENVS = {
     },
   },
   release: {
-    steps: ['clean', 'copyNginxConfig', 'copyMisc', 'copyScripts', 'package'],
+    steps: [
+      'clean',
+      'copyNginxConfig',
+      'copyMisc',
+      'generateConfigJsModule',
+      'copyScripts',
+      'cleanupConfigJsModule',
+      'package'
+    ],
     config: async () => {
       const {
         default: { releases },
@@ -145,7 +158,10 @@ const BUILD_STEPS = {
   },
   copyMisc: moveMiscFilesToTargetDir,
   copyScripts: bundleAndCopyScripts,
+  generateConfigJsModule: generateConfigJsModule,
+  cleanupConfigJsModule: cleanupConfigJsModule,
   reloadConfig: reloadNginxWithBuiltConfig,
+  copyConfigJsModuleToTestContext: copyConfigJsModuleToTestContext,
   package: packageRelease,
 };
 
@@ -315,12 +331,8 @@ async function copyEnvSpecificFiles({
   );
 }
 
-async function bundleAndCopyScripts(buildConfig) {
-  const { jsBundlesDestPath, jsBundlesSrcPath, templateVars } = buildConfig;
-  const configFileForBundle = path.join(rootDir, 'src', 'scripts', 'config.mjs');
-  // Write all the config variables to a file that can be included. TODO: probably should have this be some separate thing
-  await fs.writeFile(configFileForBundle, `export default ${JSON.stringify(templateVars)};`, { flag: 'w+' });
-  await fs.mkdir(jsBundlesDestPath, { recursive: true });
+async function bundleAndCopyScripts({ jsBundlesDestPath, jsBundlesSrcPath }) {
+  await fs.mkdir(jsBundlesDestPath, { recursive: true, force: true });
   await execFile(`${__dirname}/bundle_with_transpile.sh`, []);
   await forFilesInDirectory(jsBundlesSrcPath, async (filePath) => {
     const pattern = /\.m?js$/gi;
@@ -334,9 +346,23 @@ async function bundleAndCopyScripts(buildConfig) {
       );
     }
   });
+}
 
+const CONFIG_JS_MODULE_FILE_PATH = path.join(rootDir, 'src', 'scripts', 'config.mjs');
+
+async function generateConfigJsModule({ templateVars }) {
+  // Write all the config variables to a file that can be included.
+  await fs.writeFile(CONFIG_JS_MODULE_FILE_PATH, `export default ${JSON.stringify(templateVars)};`, { flag: 'w+' });
+}
+
+async function copyConfigJsModuleToTestContext({ jsBundlesDestPath }) {
+  await fs.mkdir(jsBundlesDestPath, { recursive: true, force: true });
+  await fs.copyFile(CONFIG_JS_MODULE_FILE_PATH, path.join(jsBundlesDestPath, 'config.mjs'));
+}
+
+async function cleanupConfigJsModule() {
   // Since this file is generated on build and needs to be in src for the bundling step, remove it after we have bundled
-  await fs.rm(configFileForBundle);
+  await fs.rm(CONFIG_JS_MODULE_FILE_PATH);
 }
 
 // #==============================================================

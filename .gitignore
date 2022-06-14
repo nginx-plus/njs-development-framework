@@ -17,6 +17,7 @@ _internal/*
 !_internal/webpack_transpilation_fixes.patch
 !_internal/start_or_reload_with_config.sh
 !_internal/run_integration.sh
+!_internal/run_unit.sh
 !_internal/PURPOSE.md
 !_build/.gitkeep
 

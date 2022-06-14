@@ -24,21 +24,32 @@ function ResponseMock() {
     };
   }
 
-
   //=================
   // Actual Mock API
   //=================
   // Spies for methods that are called and have a side effect
   self.return = initSpy('return');
 
-
   // Read only attributes
   self.headersIn = {};
   self.headersOut = {};
+  self.variables = {};
+  self.uri = '/';
 
   // Convenience methods for modifying read only elements
   self.addHeader = (key, value) => {
     self.headersIn[normalizeHeaderKey(key)] = value;
+    return self;
+  };
+
+  // Meant to mimic an invocation of the `js_var` directive in the conf file.
+  self.jsVar = (key, value) => {
+    self.variables[key] = value;
+    return self;
+  };
+
+  self.uri = (path) => {
+    self.uri = path;
     return self;
   };
 }

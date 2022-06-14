@@ -113,7 +113,7 @@ jobs:
         run: npm ci
 
       - name: Run unit tests
-        run: npm run test:unit
+        run: npm run test:unit -- --nginx-bin-path=nginx --nginx-module-path=/usr/lib/nginx/modules
 
   run-integration-tests:
     needs: build-and-push-image
