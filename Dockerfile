@@ -4,7 +4,6 @@ SHELL ["/bin/bash", "-c"]
 
 WORKDIR /
 
-ADD /njs_src_fixes.patch /njs_src_fixes.patch
 ADD .tool-versions /
 
 RUN set -eux \
@@ -17,7 +16,6 @@ RUN set -eux \
     cd /tmp; \
     git clone https://github.com/nginx/njs.git; \
     cd /tmp/njs; \
-    git apply /njs_src_fixes.patch; \
     ./configure; \
     make; \
     NJS_PATH="$(which njs)"; \
